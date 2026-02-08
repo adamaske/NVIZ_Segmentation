@@ -9,6 +9,7 @@ import sys
 def merge_obj(path_a, path_b, path_out):
     vertices = []
     faces = []
+    vertex_offset = 0
 
     for path in [path_a, path_b]:
         local_verts = 0
