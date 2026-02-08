@@ -165,18 +165,3 @@ Useful for visualization but not for spatial analysis.
   Place the received license.txt in this BrainSegmentation/ folder.
 
 ---
-
-## For NIRSViz Integration (Developer Notes)
-
-The OBJ files produced here are standard Wavefront OBJ with vertices and triangular
-faces. They load directly with your existing OBJ loader (`cortex_model.obj` path).
-
-Coordinate system: FreeSurfer surfaces are in **scanner RAS** coordinates (Right,
-Anterior, Superior) in millimeters, matching the T1w image. If your MRI is loaded
-via ITK in NIRSViz, the coordinates should align — both use the same physical
-coordinate system from the NIfTI header.
-
-Typical mesh stats for an adult brain:
-- Pial surface: ~130,000-160,000 vertices per hemisphere
-- `cortex.obj` (merged): ~260,000-320,000 vertices total
-- If this is too heavy, decimate in MeshLab or use FreeSurfer's `mris_decimate`
