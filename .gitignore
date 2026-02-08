@@ -1,3 +1,11 @@
+output/
+BrainSegmentation/output
+BrainSegmentation/license
+license.txt
+license/license.txt
+venv/
+*.zip
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
