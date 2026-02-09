@@ -1,182 +1,264 @@
-# BrainSegmentation — FastSurfer Pipeline for NIRSViz
+# NVIZ Segmentation
 
-Generate high-quality cortex meshes from T1-weighted MRI scans using FastSurfer,
-for import into NIRSViz.
-
-## What This Does
+Generate cortex and white matter meshes from T1-weighted MRI scans using [FastSurfer](https://github.com/Deep-MI/FastSurfer) via Docker. Designed for import into [NIRSViz](https://github.com/adamaske/NIRSViz).
 
 ```
-T1w MRI (.nii.gz)  →  FastSurfer (Docker)  →  Cortex mesh (.obj)  →  NIRSViz
+T1w MRI (.nii.gz)  →  FastSurfer (Docker + GPU)  →  STL surfaces  →  NIRSViz
 ```
-
-FastSurfer performs:
-1. **Brain segmentation** — 95 anatomical classes in ~1 min (GPU)
-2. **Surface reconstruction** — pial + white matter surfaces in ~45-60 min
-3. **Surface conversion** — FreeSurfer format → OBJ for NIRSViz
 
 ---
 
 ## Prerequisites
 
+You need three things installed before you start:
+
 ### 1. Docker Desktop
 
-- Download from: https://www.docker.com/products/docker-desktop/
-- During install, ensure **WSL2 backend** is selected
-- After install, open Docker Desktop and verify it's running
+Download and install from [docker.com](https://www.docker.com/products/docker-desktop/). During installation make sure **WSL2 backend** is selected (Windows). After installing, open Docker Desktop and wait for it to fully start (the whale icon in the system tray stops animating).
 
-### 2. NVIDIA Container Toolkit (for GPU acceleration)
+### 2. NVIDIA GPU Support in Docker
 
-In a PowerShell terminal:
+This is needed for fast processing (~1 min instead of ~15 min for segmentation). Open PowerShell and run:
+
 ```powershell
-# Verify your GPU is visible to Docker
 docker run --rm --gpus all nvidia/cuda:12.0.0-base-ubuntu22.04 nvidia-smi
 ```
 
-If this fails, install the NVIDIA Container Toolkit:
-- Guide: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html
-- You need: NVIDIA driver (Game Ready or Studio) + Docker Desktop with WSL2
+If this prints your GPU info, you're good. If it fails, install the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html). You need up-to-date NVIDIA drivers and Docker Desktop using the WSL2 backend (Settings → General → Use WSL2).
 
-Without GPU, FastSurfer still works but segmentation takes ~15 min instead of ~1 min.
+> **No NVIDIA GPU?** FastSurfer still works on CPU, it's just slower. Segmentation takes ~15 min instead of ~1 min. Surface reconstruction (~45-60 min) is CPU-bound either way.
 
 ### 3. FreeSurfer License (free)
 
-FastSurfer requires a FreeSurfer license file even though it's separate software.
+FastSurfer requires a FreeSurfer license file.
 
 1. Register at: https://surfer.nmr.mgh.harvard.edu/registration.html
-2. You'll receive `license.txt` via email
-3. Place it in this folder as `license.txt`
+2. You'll receive `license.txt` by email
+3. Place it in the `license/` folder so the path is `license/license.txt`
 
 ---
 
-## Usage
-
-### Quick Start
+## Quick Start
 
 ```
-1. Place your T1w scan in input/
-2. Place license.txt in this folder
-3. Run:   run_fastsurfer.bat sub-116_T1w.nii.gz
-4. Wait ~1 hour
-5. Find cortex.obj in output/<subject>/surf/
+1.  Place your T1w scan (.nii.gz) in the input/ folder
+2.  Place your FreeSurfer license.txt in the license/ folder
+3.  Open a terminal in this folder
+4.  Run:  run_fastsurfer.bat sub-116_ses-BL_T1w.nii.gz sub-116
+5.  Wait ~45-75 minutes
+6.  Run:  convert_surfaces.bat sub-116
+7.  Run:  merge_surfaces.bat sub-116
+8.  Find your merged OBJ in output/sub-116/surf/pial.obj
 ```
 
-### Full Command
+---
+
+## Step-by-Step Guide
+
+### Step 0: Verify Your Setup
+
+Run the setup checker to make sure everything is working:
 
 ```batch
-run_fastsurfer.bat <filename.nii.gz> [subject_id]
+verify_setup.bat
 ```
 
-**Examples:**
-```batch
-:: Auto-generates subject ID from filename
-run_fastsurfer.bat sub-116_ses-BL_T1w.nii.gz
+This checks that Docker is running, your GPU is accessible, the FastSurfer image is downloaded, and your license file is in place. If the FastSurfer image isn't downloaded yet, run:
 
-:: Explicit subject ID  
+```batch
+docker pull deepmi/fastsurfer:latest
+```
+
+This downloads ~8 GB and only needs to be done once.
+
+### Step 1: Run FastSurfer
+
+```batch
+run_fastsurfer.bat <filename.nii.gz> <subject_id>
+```
+
+**Example:**
+```batch
 run_fastsurfer.bat sub-116_ses-BL_T1w.nii.gz sub-116
 ```
 
-### Convert Only (if you already ran FastSurfer)
+This runs brain segmentation and surface reconstruction. It takes roughly 45-75 minutes total. The script will show progress as it runs.
 
+**What happens under the hood:**
+- Deep learning segmentation labels 95 brain regions (~1 min GPU / ~15 min CPU)
+- Surface reconstruction builds pial and white matter surfaces (~45-60 min)
+- Results are written to `output/<subject_id>/`
+
+### Step 2: Convert Surfaces to STL
+
+After FastSurfer completes, convert the FreeSurfer surface files to STL format:
+
+```batch
+convert_surfaces.bat <subject_id>
+```
+
+**Example:**
 ```batch
 convert_surfaces.bat sub-116
 ```
 
-This converts FreeSurfer surfaces to OBJ and merges left+right hemispheres
-into a single `cortex.obj`.
+This produces four STL files in `output/<subject_id>/surf/`:
+
+| File | Description |
+|------|-------------|
+| `lh_pial.stl` | Left hemisphere cortical surface (grey matter outer boundary) |
+| `rh_pial.stl` | Right hemisphere cortical surface |
+| `lh_white.stl` | Left hemisphere white matter surface (grey matter inner boundary) |
+| `rh_white.stl` | Right hemisphere white matter surface |
+
+### Step 3: Merge Hemispheres to OBJ
+
+Merge the left and right hemispheres into a single triangulated OBJ mesh:
+
+```batch
+pip install -r requirements.txt
+merge_surfaces.bat <subject_id> [surface_type]
+```
+
+**Examples:**
+```batch
+:: Merge pial surfaces (default) → pial.obj
+merge_surfaces.bat sub-116
+
+:: Merge white matter surfaces → white.obj
+merge_surfaces.bat sub-116 white
+```
+
+This reads the FreeSurfer binary surfaces directly, merges them with correct vertex indexing, and writes a standard Wavefront OBJ with triangular faces. The hemispheres are preserved as separate groups (`left_hemisphere` / `right_hemisphere`) inside the OBJ, so you can still distinguish them in your 3D viewer if needed.
+
+**Output:** `output/<subject_id>/surf/pial.obj` (or `white.obj`)
+
+### Step 4: Load in NIRSViz
+
+Load the OBJ file from `output/<subject_id>/surf/` into NIRSViz. The individual STL files from Step 2 are also available if you need per-hemisphere meshes.
+
+---
+
+## Optional: Merge & Simplify Meshes
+
+Two Python utility scripts are included in the `scripts/` folder. These require Python 3.11+ and the dependencies listed in `requirements.txt`:
+
+```batch
+pip install -r requirements.txt
+```
+
+**Merge left + right hemispheres into a single mesh:**
+```batch
+python scripts/merge_stl.py output/sub-116/surf/lh_pial.stl output/sub-116/surf/rh_pial.stl output/sub-116/surf/whole_brain_pial.stl
+```
+
+**Reduce mesh complexity for faster rendering** (keeps 10% of triangles by default):
+```batch
+python scripts/process_mesh.py output/sub-116/surf/whole_brain_pial.stl output/sub-116/surf/whole_brain_pial_lowres.stl 0.90
+```
 
 ---
 
 ## Output Structure
 
-After a successful run, `output/<subject_id>/` contains:
-
 ```
 output/sub-116/
 ├── mri/
-│   ├── aseg.mgz              ← Volumetric segmentation (95 classes)
-│   ├── brain.mgz             ← Skull-stripped brain
-│   ├── orig.mgz              ← Original T1w in FreeSurfer space
-│   └── ...
+│   ├── orig.mgz                     # Original T1w in FreeSurfer space
+│   ├── aparc.DKTatlas+aseg.mgz      # 95-class segmentation volume
+│   ├── aseg.mgz                     # Subcortical segmentation
+│   └── brain.mgz                    # Skull-stripped brain
 ├── surf/
-│   ├── lh.pial               ← Left hemisphere pial surface (FreeSurfer format)
-│   ├── rh.pial               ← Right hemisphere pial surface
-│   ├── lh.white              ← Left hemisphere white matter surface
-│   ├── rh.white              ← Right hemisphere white matter surface
-│   ├── lh.pial.obj           ← Left pial as OBJ  ← USE THESE
-│   ├── rh.pial.obj           ← Right pial as OBJ
-│   ├── lh.white.obj          ← Left white as OBJ
-│   ├── rh.white.obj          ← Right white as OBJ
-│   ├── cortex.obj            ← Merged lh+rh pial  ← OR THIS
-│   └── ...
-├── label/                     ← Cortical parcellation labels
-├── stats/                     ← Thickness, volume statistics
-└── scripts/                   ← Processing logs
+│   ├── lh.pial / rh.pial            # Pial surfaces (FreeSurfer binary format)
+│   ├── lh.white / rh.white          # White matter surfaces (FreeSurfer binary)
+│   ├── lh_pial.stl / rh_pial.stl    # Per-hemisphere STL files
+│   ├── lh_white.stl / rh_white.stl  # Per-hemisphere STL files
+│   ├── pial.obj                     # ← Merged pial OBJ (use this in NIRSViz)
+│   └── white.obj                    # ← Merged white matter OBJ
+├── stats/                            # Volumetric and parcellation statistics
+└── label/                            # Cortical parcellation labels
 ```
-
-### Files for NIRSViz
-
-| File | What it is | Use in NIRSViz |
-|------|-----------|----------------|
-| `surf/cortex.obj` | Merged pial surface (both hemispheres) | Load as cortex mesh |
-| `surf/lh.white.obj` + `rh.white.obj` | White matter surface | Load as WM mesh |
-| `mri/aseg.mgz` | 95-class segmentation volume | Slice viewer overlay (future) |
 
 ---
 
 ## Surface Types Explained
 
-**Pial surface** — the outer boundary of the cortex (grey matter / CSF boundary).
-This is what you want for NIRS channel projection since optodes sit on the scalp
-and project inward to the cortical surface.
+**Pial surface** — The outer boundary of the cortex (grey matter / CSF boundary). This is the primary surface for NIRS applications since optodes sit on the scalp and project inward to the cortical surface.
 
-**White surface** — the inner boundary of the cortex (grey matter / white matter boundary).
-Useful for visualization and cortical thickness analysis.
+**White surface** — The inner boundary of the cortex (grey matter / white matter boundary). Useful for cortical thickness analysis and understanding the full extent of grey matter.
 
-**Inflated surface** — the pial surface "inflated" like a balloon, making sulci visible.
-Useful for visualization but not for spatial analysis.
+---
+
+## Processing Multiple Subjects
+
+Create a batch file to process several scans:
+
+```batch
+@echo off
+call run_fastsurfer.bat sub-001_T1w.nii.gz sub-001
+call convert_surfaces.bat sub-001
+
+call run_fastsurfer.bat sub-002_T1w.nii.gz sub-002
+call convert_surfaces.bat sub-002
+```
 
 ---
 
 ## Troubleshooting
 
-**"Docker is not running"**
-→ Open Docker Desktop and wait for it to start. The whale icon in the system tray
-  should stop animating.
+**"Docker is not running"** — Open Docker Desktop and wait for it to fully start. Check that the Docker Desktop Service is running in Windows Services. Ensure virtualization is enabled in your BIOS.
 
-**"GPU not available via Docker"**
-→ Make sure you have:
-  - An NVIDIA GPU with recent drivers (check with `nvidia-smi` in PowerShell)
-  - Docker Desktop using the WSL2 backend (Settings → General → Use WSL2)
-  - NVIDIA Container Toolkit installed in WSL2
+**"GPU not available"** — Make sure you have an NVIDIA GPU with recent drivers (`nvidia-smi` in PowerShell should show your GPU). Docker Desktop must use the WSL2 backend (Settings → General). Install the NVIDIA Container Toolkit if you haven't. Enable GPU support in Docker Desktop (Settings → Resources → WSL Integration).
 
-**FastSurfer fails with memory errors**
-→ Docker Desktop defaults to limited RAM. Go to Settings → Resources and increase
-  memory to at least 8 GB (16 GB recommended).
+**FastSurfer fails with memory errors** — Docker Desktop defaults to limited RAM. Go to Settings → Resources and increase memory to at least 8 GB (16 GB recommended).
 
-**Surfaces look wrong / have holes**
-→ Input image quality matters. FastSurfer expects:
-  - 3T scanner preferred (1.5T works but lower quality)
-  - 1mm isotropic resolution (0.7-1.5mm acceptable)
-  - MPRAGE or similar T1-weighted sequence
-  - No excessive motion artifacts
+**Surfaces look wrong or have holes** — Input image quality matters. FastSurfer expects a T1-weighted scan (MPRAGE or similar) at ~1mm isotropic resolution from a 3T scanner (1.5T works but lower quality). Make sure there are no excessive motion artifacts and full brain coverage.
 
-**"FreeSurfer license not found"**
-→ Register at https://surfer.nmr.mgh.harvard.edu/registration.html
-  Place the received license.txt in this BrainSegmentation/ folder.
+**"FreeSurfer license not found"** — Make sure `license.txt` is placed in the `license/` folder, not in the root directory.
+
+**convert_surfaces.bat fails** — Verify that `output/<subject_id>/surf/lh.pial` exists. If it doesn't, FastSurfer may not have completed successfully. Check the logs in `output/<subject_id>/scripts/`.
 
 ---
 
-## For NIRSViz Integration (Developer Notes)
+## Performance
 
-The OBJ files produced here are standard Wavefront OBJ with vertices and triangular
-faces. They load directly with your existing OBJ loader (`cortex_model.obj` path).
+| Stage | GPU | CPU |
+|-------|-----|-----|
+| Segmentation | ~1 min | ~15 min |
+| Surface reconstruction | ~45-60 min | ~45-60 min |
+| **Total** | **~50-70 min** | **~60-75 min** |
 
-Coordinate system: FreeSurfer surfaces are in **scanner RAS** coordinates (Right,
-Anterior, Superior) in millimeters, matching the T1w image. If your MRI is loaded
-via ITK in NIRSViz, the coordinates should align — both use the same physical
-coordinate system from the NIfTI header.
+**Recommended Docker resources:** 8 GB RAM minimum (16 GB recommended), 10 GB free disk space, 4+ CPU cores.
 
-Typical mesh stats for an adult brain:
-- Pial surface: ~130,000-160,000 vertices per hemisphere
-- `cortex.obj` (merged): ~260,000-320,000 vertices total
-- If this is too heavy, decimate in MeshLab or use FreeSurfer's `mris_decimate`
+---
+
+## Project Structure
+
+```
+NVIZ_Segmentation/
+├── run_fastsurfer.bat       # Step 1: Runs FastSurfer segmentation + surfaces
+├── convert_surfaces.bat     # Step 2: Converts FreeSurfer surfaces to STL
+├── merge_surfaces.bat       # Step 3: Merges hemispheres into a triangulated OBJ
+├── verify_setup.bat         # Checks Docker, GPU, image, and license
+├── scripts/
+│   ├── merge_to_obj.py      # Reads FreeSurfer surfaces → merged OBJ
+│   ├── merge_stl.py         # Merge two STL files (legacy/optional)
+│   └── process_mesh.py      # Decimate and smooth meshes for visualization
+├── input/                   # Place your T1w .nii.gz files here
+├── license/                 # Place your FreeSurfer license.txt here
+├── output/                  # Created automatically, contains results
+├── requirements.txt         # Python dependencies (nibabel, numpy, open3d)
+└── README.md
+```
+
+---
+
+## References
+
+- **FastSurfer:** Henschel L, Conjeti S, Estrada S, Diers K, Fischl B, Reuter M. *FastSurfer — A fast and accurate deep learning based neuroimaging pipeline.* NeuroImage 2020. [DOI: 10.1016/j.neuroimage.2020.117012](https://doi.org/10.1016/j.neuroimage.2020.117012)
+- FastSurfer GitHub: https://github.com/Deep-MI/FastSurfer
+- FreeSurfer: https://surfer.nmr.mgh.harvard.edu/
+
+## License
+
+This pipeline uses FastSurfer (Apache 2.0), FreeSurfer tools (FreeSurfer License, free registration required), and Docker (Apache 2.0).
