@@ -59,6 +59,11 @@ FastSurfer requires a FreeSurfer license file.
 
 Run the setup checker to make sure everything is working:
 
+#### run_fastsurfer.bat
+
+**Purpose:** Runs the complete FastSurfer pipeline including segmentation, surface reconstruction, and automatic conversion to OBJ format.
+
+**Syntax:**
 ```batch
 verify_setup.bat
 ```
@@ -99,7 +104,11 @@ convert_surfaces.bat <subject_id>
 
 **Example:**
 ```batch
+:: Convert surfaces for subject "sub-116"
 convert_surfaces.bat sub-116
+
+:: Convert for custom subject ID
+convert_surfaces.bat patient-abc
 ```
 
 This produces four STL files in `output/<subject_id>/surf/`:
