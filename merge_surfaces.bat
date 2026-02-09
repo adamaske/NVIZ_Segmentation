@@ -9,7 +9,7 @@ if "%~1"=="" (
     echo.
     echo  Usage: merge_surfaces.bat ^<subject_id^> [surface_type]
     echo.
-    echo  surface_type: pial ^(default^) or white
+    echo  surface_type: pial (default) or white
     echo.
     echo  Examples:
     echo    merge_surfaces.bat sub-116
@@ -25,23 +25,23 @@ if not "%~2"=="" set SURFACE=%~2
 set "SCRIPT_DIR=%~dp0"
 set "SURF_DIR=%SCRIPT_DIR%output\%SUBJECT_ID%\surf"
 
-REM --- Check surfaces exist ---
-if not exist "%SURF_DIR%\lh.%SURFACE%" (
-    echo  ERROR: Left surface not found: %SURF_DIR%\lh.%SURFACE%
-    echo  Run FastSurfer first: run_fastsurfer.bat ^<file^> %SUBJECT_ID%
+REM --- Check STL files exist ---
+if not exist "%SURF_DIR%\lh_%SURFACE%.stl" (
+    echo  ERROR: Left surface not found: %SURF_DIR%\lh_%SURFACE%.stl
+    echo  Run convert_surfaces.bat %SUBJECT_ID% first.
     exit /b 1
 )
-if not exist "%SURF_DIR%\rh.%SURFACE%" (
-    echo  ERROR: Right surface not found: %SURF_DIR%\rh.%SURFACE%
+if not exist "%SURF_DIR%\rh_%SURFACE%.stl" (
+    echo  ERROR: Right surface not found: %SURF_DIR%\rh_%SURFACE%.stl
     exit /b 1
 )
 
 set OUTPUT_NAME=%SURFACE%.obj
 echo.
-echo  Merging lh.%SURFACE% + rh.%SURFACE% --^> %OUTPUT_NAME%
+echo  Merging lh_%SURFACE%.stl + rh_%SURFACE%.stl --^> %OUTPUT_NAME%
 echo.
 
-python "%SCRIPT_DIR%scripts\merge_to_obj.py" "%SURF_DIR%\lh.%SURFACE%" "%SURF_DIR%\rh.%SURFACE%" "%SURF_DIR%\%OUTPUT_NAME%"
+python "%SCRIPT_DIR%scripts\merge_to_obj.py" "%SURF_DIR%\lh_%SURFACE%.stl" "%SURF_DIR%\rh_%SURFACE%.stl" "%SURF_DIR%\%OUTPUT_NAME%"
 
 if !ERRORLEVEL! NEQ 0 (
     echo.
