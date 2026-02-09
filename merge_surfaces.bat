@@ -9,7 +9,7 @@ if "%~1"=="" (
     echo.
     echo  Usage: merge_surfaces.bat ^<subject_id^> [surface_type]
     echo.
-    echo  surface_type: pial (default) or white
+    echo  surface_type: pial ^(default^) or white
     echo.
     echo  Examples:
     echo    merge_surfaces.bat sub-116
