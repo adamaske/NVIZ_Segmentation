@@ -27,7 +27,7 @@ if "%~2"=="" (
 
 set FILENAME=%~1
 set SUBJECT_ID=%~2
-set SCRIPT_DIR=%~dp0
+set "SCRIPT_DIR=%~dp0"
 
 REM --- Check input file exists ---
 if not exist "%SCRIPT_DIR%input\%FILENAME%" (

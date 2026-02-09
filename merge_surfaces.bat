@@ -22,8 +22,8 @@ set SUBJECT_ID=%~1
 set SURFACE=pial
 if not "%~2"=="" set SURFACE=%~2
 
-set SCRIPT_DIR=%~dp0
-set SURF_DIR=%SCRIPT_DIR%output\%SUBJECT_ID%\surf
+set "SCRIPT_DIR=%~dp0"
+set "SURF_DIR=%SCRIPT_DIR%output\%SUBJECT_ID%\surf"
 
 REM --- Check surfaces exist ---
 if not exist "%SURF_DIR%\lh.%SURFACE%" (
@@ -43,7 +43,7 @@ echo.
 
 python "%SCRIPT_DIR%scripts\merge_to_obj.py" "%SURF_DIR%\lh.%SURFACE%" "%SURF_DIR%\rh.%SURFACE%" "%SURF_DIR%\%OUTPUT_NAME%"
 
-if %ERRORLEVEL% NEQ 0 (
+if !ERRORLEVEL! NEQ 0 (
     echo.
     echo  ERROR: Merge failed. Make sure Python and nibabel are installed:
     echo    pip install -r requirements.txt

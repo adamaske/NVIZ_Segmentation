@@ -12,7 +12,15 @@ if "%~1"=="" (
 )
 
 set SUBJECT_ID=%~1
-set SCRIPT_DIR=%~dp0
+set "SCRIPT_DIR=%~dp0"
+set "LICENSE_FILE=%SCRIPT_DIR%license\license.txt"
+
+REM --- Check for FreeSurfer license ---
+if not exist "%LICENSE_FILE%" (
+    echo  ERROR: FreeSurfer license not found at: license\license.txt
+    echo  Register for free at: https://surfer.nmr.mgh.harvard.edu/registration.html
+    exit /b 1
+)
 
 REM --- Check for FastSurfer output ---
 if not exist "%SCRIPT_DIR%output\%SUBJECT_ID%\surf\lh.pial" (
@@ -34,7 +42,7 @@ for %%S in (lh.pial rh.pial lh.white rh.white) do (
     docker run --rm ^
         --user 0:0 ^
         -v "%SCRIPT_DIR%output":/output ^
-        -v "%FS_LICENSE%":/license.txt ^
+        -v "%LICENSE_FILE%":/license.txt ^
         -e FS_LICENSE=/license.txt ^
         --entrypoint mris_convert ^
         deepmi/fastsurfer:latest ^
