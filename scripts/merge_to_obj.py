@@ -1,81 +1,51 @@
 """
-Merge left and right FreeSurfer hemisphere surfaces into a single triangulated OBJ mesh.
+Merge two STL meshes (left + right hemisphere) into a single triangulated OBJ.
 
-Reads FreeSurfer binary surface files (e.g. lh.pial, rh.pial) directly using nibabel,
-merges them with correct vertex index offsetting, and writes a standard Wavefront OBJ
-with triangular faces.
+Loads the STL files produced by convert_surfaces.bat, merges them, and exports
+a standard Wavefront OBJ with triangular faces.
 
-Requires: pip install nibabel numpy
+Requires: pip install trimesh
 
 Usage:
-  python merge_to_obj.py <left_surface> <right_surface> <output.obj>
+  python merge_to_obj.py <left.stl> <right.stl> <output.obj>
 
 Examples:
-  python merge_to_obj.py output/sub-116/surf/lh.pial output/sub-116/surf/rh.pial output/sub-116/surf/cortex.obj
-  python merge_to_obj.py output/sub-116/surf/lh.white output/sub-116/surf/rh.white output/sub-116/surf/white.obj
+  python merge_to_obj.py output/sub-116/surf/lh_pial.stl output/sub-116/surf/rh_pial.stl output/sub-116/surf/pial.obj
+  python merge_to_obj.py output/sub-116/surf/lh_white.stl output/sub-116/surf/rh_white.stl output/sub-116/surf/white.obj
 """
 import os
 import sys
 
-import nibabel.freesurfer.io as fsio
-import numpy as np
+import trimesh
 
 
-def read_freesurfer_surface(path):
-    """Read a FreeSurfer binary surface file and return vertices and faces."""
-    if not os.path.exists(path):
-        print(f"[ERROR] File not found: {path}")
-        sys.exit(1)
+def merge_stl_to_obj(lh_path, rh_path, output_path):
+    """Load two STL meshes, merge them, and write as a triangulated OBJ."""
 
-    vertices, faces = fsio.read_geometry(path)
-    print(f"  [OK] {os.path.basename(path)}: {len(vertices)} vertices, {len(faces)} faces")
-    return vertices, faces
+    for path in [lh_path, rh_path]:
+        if not os.path.exists(path):
+            print(f"[ERROR] File not found: {path}")
+            sys.exit(1)
 
+    print("--- Loading meshes ---")
+    lh = trimesh.load(lh_path)
+    print(f"  [OK] {os.path.basename(lh_path)}: {len(lh.vertices)} vertices, {len(lh.faces)} faces")
 
-def merge_and_write_obj(lh_path, rh_path, output_path):
-    """
-    Read two FreeSurfer surfaces, merge them into a single mesh,
-    and write as a triangulated Wavefront OBJ file.
-    """
-    print("--- Reading surfaces ---")
-    lh_verts, lh_faces = read_freesurfer_surface(lh_path)
-    rh_verts, rh_faces = read_freesurfer_surface(rh_path)
+    rh = trimesh.load(rh_path)
+    print(f"  [OK] {os.path.basename(rh_path)}: {len(rh.vertices)} vertices, {len(rh.faces)} faces")
 
-    # Offset right-hemisphere face indices by the number of left-hemisphere vertices
-    rh_faces_offset = rh_faces + len(lh_verts)
+    print("\n--- Merging ---")
+    merged = trimesh.util.concatenate([lh, rh])
+    print(f"  Vertices: {len(merged.vertices)}")
+    print(f"  Faces:    {len(merged.faces)} (all triangles)")
 
-    # Concatenate
-    all_verts = np.concatenate([lh_verts, rh_verts], axis=0)
-    all_faces = np.concatenate([lh_faces, rh_faces_offset], axis=0)
+    # Reorient: frontal (old +Z) -> +X, inferior (old +Y) -> -Z
+    import numpy as np
+    merged.vertices = merged.vertices[:, [2, 0, 1]] * np.array([1, -1, -1])
 
-    print(f"\n--- Merged mesh ---")
-    print(f"  Vertices: {len(all_verts)}")
-    print(f"  Faces:    {len(all_faces)} (all triangles)")
-
-    # Write OBJ
     print(f"\n--- Writing OBJ ---")
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
-
-    with open(output_path, "w") as f:
-        f.write(f"# Merged FreeSurfer surface\n")
-        f.write(f"# Left:  {os.path.basename(lh_path)} ({len(lh_verts)} verts)\n")
-        f.write(f"# Right: {os.path.basename(rh_path)} ({len(rh_verts)} verts)\n")
-        f.write(f"# Total: {len(all_verts)} vertices, {len(all_faces)} triangles\n\n")
-
-        # Vertices
-        for v in all_verts:
-            f.write(f"v {v[0]:.6f} {v[1]:.6f} {v[2]:.6f}\n")
-
-        f.write(f"\n# Left hemisphere faces\n")
-        f.write(f"g left_hemisphere\n")
-        for face in lh_faces:
-            # OBJ faces are 1-indexed
-            f.write(f"f {face[0]+1} {face[1]+1} {face[2]+1}\n")
-
-        f.write(f"\n# Right hemisphere faces\n")
-        f.write(f"g right_hemisphere\n")
-        for face in rh_faces_offset:
-            f.write(f"f {face[0]+1} {face[1]+1} {face[2]+1}\n")
+    merged.export(output_path, file_type="obj")
 
     print(f"  [OK] Written to: {output_path}")
     print(f"  File size: {os.path.getsize(output_path) / (1024*1024):.1f} MB")
@@ -83,11 +53,11 @@ def merge_and_write_obj(lh_path, rh_path, output_path):
 
 if __name__ == "__main__":
     if len(sys.argv) != 4:
-        print(f"Usage: {sys.argv[0]} <left_surface> <right_surface> <output.obj>")
+        print(f"Usage: {sys.argv[0]} <left.stl> <right.stl> <output.obj>")
         print()
         print("Examples:")
-        print(f"  {sys.argv[0]} output/sub-116/surf/lh.pial output/sub-116/surf/rh.pial output/sub-116/surf/cortex.obj")
-        print(f"  {sys.argv[0]} output/sub-116/surf/lh.white output/sub-116/surf/rh.white output/sub-116/surf/white.obj")
+        print(f"  {sys.argv[0]} output/sub-116/surf/lh_pial.stl output/sub-116/surf/rh_pial.stl output/sub-116/surf/pial.obj")
+        print(f"  {sys.argv[0]} output/sub-116/surf/lh_white.stl output/sub-116/surf/rh_white.stl output/sub-116/surf/white.obj")
         sys.exit(1)
 
-    merge_and_write_obj(sys.argv[1], sys.argv[2], sys.argv[3])
+    merge_stl_to_obj(sys.argv[1], sys.argv[2], sys.argv[3])
