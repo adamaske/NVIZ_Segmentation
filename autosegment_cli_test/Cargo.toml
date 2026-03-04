@@ -1,0 +1,8 @@
+[package]
+name = "autosegment_cli_test"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+neuroformats = "0.3"
+ndarray = "0.16"

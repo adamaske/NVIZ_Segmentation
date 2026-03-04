@@ -1,2 +1,6 @@
 trimesh
 open3d
+nibabel
+scipy
+scikit-image
+numpy

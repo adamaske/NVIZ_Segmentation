@@ -1,6 +1,6 @@
 # FastSurfer output (large, regeneratable)
 output/
-
+autosegment_cli_test/target
 # FreeSurfer license (personal)
 license/license.txt
 
